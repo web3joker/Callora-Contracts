@@ -763,17 +763,18 @@ Emitted when the admin clears the emergency pause guardian role.
 
 ### `receive_payment`
 
-Emitted when the admin logs an inbound payment from the vault.
+Emitted when the pool settles an inbound payment from the vault.
 
-> **Note:** This is an **event-only helper** â€” it does not move tokens. USDC
-> arrives via a direct token transfer from the vault. Call `receive_payment` to
-> emit this event for indexer alignment.
+> **Note:** This is a **real transfer** â€” it pulls `amount` USDC from the
+> caller into the pool via `token.transfer` before emitting. Only the
+> vault/settlement address configured with `set_vault` may call it; the admin
+> retains config powers but no longer bypasses the transfer.
 
 | Index   | Location | Type         | Description                                     |
 |---------|-----------|--------------|-------------------------------------------------|
 | topic 0 | topics   | Symbol       | `"receive_payment"`                             |
-| topic 1 | topics   | Address      | `caller` â€” typically admin                      |
-| data    | data     | (i128, bool) | `(amount, from_vault)` â€” amount in stroops; `from_vault=true` when source is the vault |
+| topic 1 | topics   | Address      | `caller` â€” the configured vault/settlement      |
+| data    | data     | (i128, bool) | `(amount, from_vault)` â€” amount actually transferred, in stroops; `from_vault=true` when source is the vault |
 
 ```json
 {

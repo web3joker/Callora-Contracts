@@ -88,6 +88,6 @@ pub enum RevenuePoolError {
     AlreadyEmergencyPaused = 24,
     /// Emergency recovery was requested while inactive (code 25).
     NotEmergencyPaused = 25,
-    /// Caller is not the configured vault/settlement (code 26).
+    /// Caller is not the configured vault/settlement address (code 26).
     UnauthorizedCaller = 26,
 }

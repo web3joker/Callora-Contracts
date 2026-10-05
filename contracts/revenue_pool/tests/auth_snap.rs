@@ -16,11 +16,11 @@
 //! | Admin rotation                   | `set_admin`, `accept_admin`, `claim_admin`, `cancel_admin_transfer` |
 //! | Pause guardian                   | `set_pause_guardian`, `clear_pause_guardian` |
 //! | Circuit breaker                  | `pause`, `unpause` |
-//! | Yield management                 | `receive_payment`, `deposit_yield`, `set_max_distribute` |
+//! | Yield management                 | `receive_payment`, `deposit_yield`, `set_max_distribute`, `set_vault` |
 //! | Distribution                     | `distribute`, `batch_distribute` |
 //! | Upgrade / broadcast              | `upgrade`, `broadcast` |
 //! | Emergency drain                  | `propose_emergency_drain`, `execute_emergency_drain`, `cancel_emergency_drain` |
-//! | Read‑only views + helpers        | `get_admin`, `get_usdc_token`, `get_pending_admin`, `get_pause_guardian`, `is_paused`, `get_cumulative_yield_deposited`, `get_max_distribute`, `balance`, `get_version`, `version`, `get_ttl_policy`, `get_pending_emergency_drain`, `chunk_iter` |
+//! | Read‑only views + helpers        | `get_admin`, `get_usdc_token`, `get_pending_admin`, `get_pause_guardian`, `is_paused`, `get_cumulative_yield_deposited`, `get_max_distribute`, `get_vault`, `balance`, `get_version`, `version`, `get_ttl_policy`, `get_pending_emergency_drain`, `chunk_iter` |
 
 extern crate std;
 
@@ -223,6 +223,30 @@ fn receive_payment_requires_auth() {
     env.set_auths(&[]);
     let res = client.try_receive_payment(&admin, &250_i128, &true);
     assert!(res.is_err(), "receive_payment must require auth");
+}
+
+/// Verify that `set_vault` requires auth on the caller (the admin).
+#[test]
+fn set_vault_requires_auth() {
+    let env = Env::default();
+    let (admin, _, client, _, _, _) = setup_pool(&env);
+    let vault = Address::generate(&env);
+
+    env.set_auths(&[]);
+    let res = client.try_set_vault(&admin, &vault);
+    assert!(res.is_err(), "set_vault must require auth");
+}
+
+/// Verify that `get_vault` is readable without authorization.
+#[test]
+fn get_vault_does_not_require_auth() {
+    let env = Env::default();
+    let (admin, _, client, _, _, _) = setup_pool(&env);
+    let vault = Address::generate(&env);
+    client.set_vault(&admin, &vault);
+
+    env.set_auths(&[]);
+    assert_eq!(client.get_vault(), Some(vault));
 }
 
 /// Verify that `deposit_yield` requires auth on the `treasury` argument
@@ -570,9 +594,10 @@ fn admin_with_auth_can_call_all_entrypoints() {
     assert!(!client.is_paused());
 
     // --- Yield management ---
+    client.set_vault(&admin, &admin);
+    usdc_admin.mint(&admin, &5_000);
     client.receive_payment(&admin, &1_000, &true);
     let source = Symbol::new(&env, "fees");
-    usdc_admin.mint(&admin, &5_000);
     client.deposit_yield(&admin, &2_000, &source);
     assert_eq!(client.get_cumulative_yield_deposited(), 2_000);
 
@@ -582,7 +607,8 @@ fn admin_with_auth_can_call_all_entrypoints() {
     // --- Distribution ---
     let dev = Address::generate(&env);
     client.distribute(&admin, &dev, &500);
-    assert_eq!(client.balance(), 50_000 + 2_000 - 500); // initial + yield - distribute
+    // initial + receive_payment + yield - distribute
+    assert_eq!(client.balance(), 50_000 + 1_000 + 2_000 - 500);
 
     let mut payments: Vec<(Address, i128)> = Vec::new(&env);
     payments.push_back((Address::generate(&env), 100_i128));
